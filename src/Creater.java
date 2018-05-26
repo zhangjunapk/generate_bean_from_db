@@ -13,36 +13,49 @@ import java.util.List;
  */
 public class Creater {
     private List<String> importList = new ArrayList<>();
-    private String path;
-    private String packageName;
+    private String beanPackage;
+    private String mapperPackage;
     private String username;
     private String password;
     private List<String> tables = new ArrayList<>();
     private String url;
+
+
+
     private HashMap<String, List<FieldBean>> map = new HashMap<>();
+
+
+    public String getBeanPackage() {
+        return beanPackage;
+    }
+
+    public Creater setBeanPackage(String beanPackage) {
+        this.beanPackage = beanPackage;
+        return this;
+    }
 
     public String getUrl() {
         return url;
     }
 
-    public String getPath() {
-        return path;
+
+    public String getMapperPackage() {
+        return mapperPackage;
     }
 
-    public Creater setPath(String path) {
-
-        this.packageName=path;
-
-        String srcPath = System.getProperty("user.dir") + "\\src";
-        System.out.println(srcPath+"           srcpath");
-        path = path.replace(".", "\\");
-        this.path = srcPath + "\\" + path;
-
-        File file=new File(this.path);
-        file.mkdirs();
-
-        System.out.println(this.path+"-------------------");
+    public Creater setMapperPackage(String mapperPackage) {
+        this.mapperPackage = mapperPackage;
         return this;
+    }
+
+    //通过包名获得绝对路径
+    private String getRelativePath(String packageName){
+        String srcPath = System.getProperty("user.dir") + "\\src";
+        System.out.println(packageName+"  packname");
+        packageName = packageName.replace(".", "\\");
+        System.out.println(packageName+"   packagename");
+        System.out.println(srcPath + "\\" + packageName);
+        return srcPath + "\\" + packageName;
     }
 
     public void setUrl(String url) {
@@ -156,6 +169,20 @@ public class Creater {
         if (type == Types.DATALINK || type == Types.DATE) {
             return "Date";
         }
+        if(type==Types.FLOAT){
+            return "float";
+        }
+        if(type==Types.DOUBLE){
+            return "double";
+        }
+        if(type==Types.INTEGER){
+            return "int";
+        }
+        if(type==Types.BOOLEAN){
+            return "boolean";
+        }
+
+
         return "String";
     }
 
@@ -174,7 +201,7 @@ public class Creater {
     }
 
 
-    //创建bean文件
+    //创建文件
     public Creater handle() {
         try {
             getData();
@@ -183,16 +210,24 @@ public class Creater {
         }
         //创建java文件
 
-        path = path == null || path == "" ? "e:\\" : path;
+        handleBean();
+        //创建通用mapper
+        handleMapper();
+
+        return this;
+    }
+
+    public void handleBean(){
+
         for (String key : map.keySet()) {
             System.out.println(key);
             //这里创建文件
-            File file = new File(path +"\\"+ toCamelCase(1, key) + ".java");
-
+            File file = new File(getRelativePath(this.beanPackage) +"\\"+ toCamelCase(1, key) + ".java");
+            System.out.println(file.getPath()+"----------");
             setFile(file);
 
             //package 声明
-            append(file,"package "+packageName+";\r\n");
+            append(file,"package "+ beanPackage +";\r\n");
 
             //导包文本添加
             for (String str : importList) {
@@ -214,11 +249,21 @@ public class Creater {
             }
             append(file, "\r\n}");
         }
-        return this;
     }
-
+    public void handleMapper(){
+        for(String str:tables){
+            File file=new File(getRelativePath(this.mapperPackage)+"\\"+toCamelCase(1,str)+"Mapper.java");
+            setFile(file);
+            append(file,"package "+this.mapperPackage+";\r\n");
+            append(file,"import "+beanPackage+"."+toCamelCase(1,str)+";\r\n");
+            append(file,"public class "+toCamelCase(1,str)+"Mapper extends Mapper<"+toCamelCase(1,str)+">{\r\n}");
+        }
+    }
     //如果文件存在，那就删除然后新建，不存在就直接新建
     private void setFile(File file) {
+
+        file.mkdirs();
+
         //如果不存在
         if (!file.exists()) {
             try {
