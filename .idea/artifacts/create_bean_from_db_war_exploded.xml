@@ -1,0 +1,13 @@
+<component name="ArtifactManager">
+  <artifact type="exploded-war" name="create_bean_from_db:war exploded">
+    <output-path>$PROJECT_DIR$/out/artifacts/create_bean_from_db_war_exploded</output-path>
+    <root id="root">
+      <element id="javaee-facet-resources" facet="create_bean_from_db/web/Web" />
+      <element id="directory" name="WEB-INF">
+        <element id="directory" name="classes">
+          <element id="module-output" name="create_bean_from_db" />
+        </element>
+      </element>
+    </root>
+  </artifact>
+</component>
