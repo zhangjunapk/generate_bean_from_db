@@ -13,6 +13,7 @@ import java.util.Map;
  * @author 张君
  */
 public class Creater {
+    private Map<String,List<String>> primaryKeyMap = new HashMap<>();
     private String beanPackage;
     private String mapperPackage;
     private String username;
@@ -20,9 +21,15 @@ public class Creater {
     private List<String> tables = new ArrayList<>();
     private String url;
 
+    public Map<String, List<String>> getPrimaryKeyMap() {
+        return primaryKeyMap;
+    }
 
+    public void setPrimaryKeyMap(Map<String, List<String>> primaryKeyMap) {
+        this.primaryKeyMap = primaryKeyMap;
+    }
 
-    private HashMap<String, FieldBean> map = new HashMap<>();
+    private HashMap<String, ClassBean> map = new HashMap<>();
 
 
     public String getBeanPackage() {
@@ -48,17 +55,17 @@ public class Creater {
         return this;
     }
 
-    public Creater allTable(){
-        String sql="show tables";
+    public Creater allTable() {
+        String sql = "show tables";
         try {
-            Connection conn=DriverManager.getConnection(url,username,password);
+            Connection conn = DriverManager.getConnection(url, username, password);
             Statement statement = conn.createStatement();
             ResultSet resultSet = statement.executeQuery(sql);
-            List<String> table=new ArrayList<>();
-            while(resultSet.next()){
-               table.add(resultSet.getString(1));
+            List<String> table = new ArrayList<>();
+            while (resultSet.next()) {
+                table.add(resultSet.getString(1));
             }
-            this.tables=table;
+            this.tables = table;
             statement.close();
             conn.close();
         } catch (SQLException e) {
@@ -68,11 +75,11 @@ public class Creater {
     }
 
     //通过包名获得绝对路径
-    private String getRelativePath(String packageName){
+    private String getRelativePath(String packageName) {
         String srcPath = System.getProperty("user.dir") + "\\src";
-        System.out.println(packageName+"  packname");
+        System.out.println(packageName + "  packname");
         packageName = packageName.replace(".", "\\");
-        System.out.println(packageName+"   packagename");
+        System.out.println(packageName + "   packagename");
         System.out.println(srcPath + "\\" + packageName);
         return srcPath + "\\" + packageName;
     }
@@ -125,26 +132,26 @@ public class Creater {
     }
 
     //放字段类型和名字
-    private class FieldBean {
+    private class ClassBean {
         //class 字段 类型的键值对
-        private List<Map.Entry<String,String>> fieldMap=new ArrayList<>();
+        private List<FieldBean> fieldList = new ArrayList<>();
         //导入list
-        private List<String> importList=new ArrayList<>();
+        private List<String> importList = new ArrayList<>();
 
-        public FieldBean() {
+        public ClassBean() {
         }
 
-        public FieldBean( List<String> importList,List<Map.Entry<String, String>> fieldMap) {
-            this.fieldMap = fieldMap;
+        public ClassBean(List<FieldBean> fieldMap, List<String> importList) {
+            this.fieldList = fieldMap;
             this.importList = importList;
         }
 
-        public List<Map.Entry<String, String>> getFieldMap() {
-            return fieldMap;
+        public List<FieldBean> getFieldList() {
+            return fieldList;
         }
 
-        public void setFieldMap(List<Map.Entry<String, String>> fieldMap) {
-            this.fieldMap = fieldMap;
+        public void setFieldList(List<FieldBean> fieldList) {
+            this.fieldList = fieldList;
         }
 
         public List<String> getImportList() {
@@ -157,73 +164,128 @@ public class Creater {
     }
 
 
-    //获得所有数据
-    private void getData() throws Exception {
-        //创建连接
+    private class FieldBean {
+        private boolean isPrimaryKey;
+        private String type;
+        private String name;
 
+        public FieldBean() {
+        }
+
+        public FieldBean(boolean isPrimaryKey, String type, String name) {
+            this.isPrimaryKey = isPrimaryKey;
+            this.type = type;
+            this.name = name;
+        }
+
+        public boolean isPrimaryKey() {
+            return isPrimaryKey;
+        }
+
+        public void setPrimaryKey(boolean primaryKey) {
+            isPrimaryKey = primaryKey;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public void setType(String type) {
+            this.type = type;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+    }
+
+
+    //获得所有数据
+    private void setData() throws Exception {
+
+        setPrimaryKeyData();
+
+
+        //创建连接
         Connection conn = DriverManager.getConnection(this.url, this.username, this.password);
         Statement statement = conn.createStatement();
         //遍历每个表
         for (String tableName : tables) {
-            System.out.println("tablename:"+tableName);
+            System.out.println("tablename:" + tableName);
             String sql = "select * from `" + tableName + "`";
             ResultSet resultSet = statement.executeQuery(sql);
             //遍历表里的每个字段，放到map中
 
             ResultSetMetaData metaData = resultSet.getMetaData();
             int columnCount = metaData.getColumnCount();
-            List<FieldBean> list = new ArrayList<>();
+            List<ClassBean> list = new ArrayList<>();
             //获得的索引从1开始
-            List<String> importList=new ArrayList<>();
-            List<Map.Entry<String,String>> fieldList=new ArrayList<>();
+            List<String> importList = new ArrayList<>();
+            List<FieldBean> fieldBeanList = new ArrayList<>();
             for (int i = 1; i <= columnCount; i++) {
                 System.out.println(i);
                 String columnName = metaData.getColumnName(i);
-                System.out.println(" columnName:"+columnName);
+                System.out.println(" columnName:" + columnName);
                 int columnType = metaData.getColumnType(i);
-                addToImportList(importList,columnType);
-                fieldList.add(new Map.Entry<String, String>() {
-                    @Override
-                    public String getKey() {
-                        return columnName;
-                    }
-
-                    @Override
-                    public String getValue() {
-                        return getJavaTypeString(columnType);
-                    }
-
-                    @Override
-                    public String setValue(String value) {
-                        return getJavaTypeString(columnType);
-                    }
-                });
+                addToImportList(importList, columnType,columnName,tableName);
+                fieldBeanList.add(new FieldBean(isPrimaryKey(tableName, columnName), getJavaTypeString(columnType), columnName));
             }
-            map.put(tableName, new FieldBean(importList,fieldList));
+            map.put(tableName, new ClassBean(fieldBeanList, importList));
 
         }
         statement.close();
         conn.close();
     }
 
+    private void setPrimaryKeyData() {
+
+        for(String tableName:tables){
+            List<String> columnList=new ArrayList<>();
+        String sql = "select * from " + tableName;
+        try {
+            Connection conn = DriverManager.getConnection(url, username, password);
+            DatabaseMetaData metaData = conn.getMetaData();
+            ResultSet primaryKeys = metaData.getPrimaryKeys(null, null, tableName);
+
+            while (primaryKeys.next()) {
+                String columnName= primaryKeys.getString(4);
+                System.out.println(columnName+"主键");
+                columnList.add(columnName);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+            getPrimaryKeyMap().put(tableName,columnList);
+        }
+    }
+
+    //判断指定字段名是否是主键
+    private boolean isPrimaryKey(String tableName, String columnName) {
+        return getPrimaryKeyMap().get(tableName).contains(columnName);
+    }
+
     //根据接收到的sqltype 数值来判断类型并返回
     private String getJavaTypeString(int type) {
 
-        System.out.println("  type:"+type);
+        System.out.println("  type:" + type);
 
-        if (type == Types.TIME || type == Types.DATE||type==Types.TIMESTAMP) {
+        if (type == Types.TIME || type == Types.DATE || type == Types.TIMESTAMP) {
             return "Date";
         }
-        if(type==Types.FLOAT){
+        if (type == Types.FLOAT) {
             return "float";
         }
-        if(type==Types.DOUBLE){
+        if (type == Types.DOUBLE) {
             return "double";
         }
-        if(type==Types.INTEGER){
+        if (type == Types.INTEGER) {
             return "int";
         }
-        if(type==Types.BOOLEAN){
+        if (type == Types.BOOLEAN) {
             return "boolean";
         }
 
@@ -231,17 +293,24 @@ public class Creater {
         return "String";
     }
 
-    private void addToImportList(List<String> list,int type) {
+    private void addToImportList(List<String> list, int type,String columnName,String tableName) {
         //类型判断是否需要导包
         //然后放到importList
+
+        if(isPrimaryKey(tableName,columnName)){
+            if(!list.contains("javax.persistence.Id")){
+                list.add("javax.persistence.Id");
+            }
+        }
 
         switch (type) {
             case Types.DATALINK:
             case Types.DATE:
             case Types.TIMESTAMP:
-                if(!list.contains("java.util.Date")) {
+                if (!list.contains("java.util.Date")) {
                     list.add("java.util.Date");
-                }break;
+                }
+                break;
         }
 
 
@@ -251,7 +320,7 @@ public class Creater {
     //创建文件
     public Creater handle() {
         try {
-            getData();
+            setData();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -264,17 +333,17 @@ public class Creater {
         return this;
     }
 
-    public void handleBean(){
+    public void handleBean() {
 
         for (String key : map.keySet()) {
             System.out.println(key);
             //这里创建文件
-            File file = new File(getRelativePath(this.beanPackage) +"\\"+ toCamelCase(1, key) + ".java");
-            System.out.println(file.getPath()+"----------");
+            File file = new File(getRelativePath(this.beanPackage) + "\\" + toCamelCase(1, key) + ".java");
+            System.out.println(file.getPath() + "----------");
             setFile(file);
 
             //package 声明
-            append(file,"package "+ beanPackage +";\r\n");
+            append(file, "package " + beanPackage + ";\r\n");
 
             //导包文本添加
             for (String str : map.get(key).getImportList()) {
@@ -282,35 +351,44 @@ public class Creater {
             }
 
             append(file, "public class " + toCamelCase(1, key) + "{\r\n");
-            for (Map.Entry entry : map.get(key).getFieldMap()) {
-                String type= (String) entry.getValue();
-                String name= (String) entry.getKey();
+            for (FieldBean fieldBean : map.get(key).getFieldList()) {
+                String type = fieldBean.getType();
+                String name = fieldBean.getName();
                 //写入文本
                 //写入变量声明部分
-                append(file, "private " + type + " " + toCamelCase(0, name) + ";\r\n");
+
+                if (fieldBean.isPrimaryKey()) {
+                    //如果是主键,就写入
+                    append(file,"@Id\r\n");
+                    append(file, "private " + type + " " + toCamelCase(0, name) + ";\r\n");
+                } else {
+                    append(file, "private " + type + " " + toCamelCase(0, name) + ";\r\n");
+                }
             }
             append(file, "\r\n");
-            for (Map.Entry entry : map.get(key).getFieldMap()) {
-                String name= (String) entry.getKey();
-                String type= (String) entry.getValue();
+            for (FieldBean fieldBean : map.get(key).getFieldList()) {
+                String type = fieldBean.getType();
+                String name = fieldBean.getName();
                 //写入setter getter
                 append(file, "public void set" + toCamelCase(1, name) + "(" + type + " " + toCamelCase(0, name) + "){ \r\nthis." + toCamelCase(0, name) + "=" + toCamelCase(0, name) + ";\r\n}\r\n");
-                append(file, "public "+type+" get" + toCamelCase(1, name) + "(){ \r\nreturn " + toCamelCase(0,name) + ";\r\n}\r\n");
+                append(file, "public " + type + " get" + toCamelCase(1, name) + "(){ \r\nreturn " + toCamelCase(0, name) + ";\r\n}\r\n");
                 System.out.println("  " + type + ":" + type);
             }
             append(file, "\r\n}");
         }
     }
-    public void handleMapper(){
-        for(String str:tables){
-            File file=new File(getRelativePath(this.mapperPackage)+"\\"+toCamelCase(1,str)+"Mapper.java");
+
+    public void handleMapper() {
+        for (String str : tables) {
+            File file = new File(getRelativePath(this.mapperPackage) + "\\" + toCamelCase(1, str) + "Mapper.java");
             setFile(file);
-            append(file,"package "+this.mapperPackage+";\r\n");
-            append(file,"import "+beanPackage+"."+toCamelCase(1,str)+";\r\n");
-            append(file,"import tk.mybatis.mapper.common.Mapper;\r\n");
-            append(file,"public interface "+toCamelCase(1,str)+"Mapper extends Mapper<"+toCamelCase(1,str)+">{\r\n}");
+            append(file, "package " + this.mapperPackage + ";\r\n");
+            append(file, "import " + beanPackage + "." + toCamelCase(1, str) + ";\r\n");
+            append(file, "import tk.mybatis.mapper.common.Mapper;\r\n");
+            append(file, "public interface " + toCamelCase(1, str) + "Mapper extends Mapper<" + toCamelCase(1, str) + ">{\r\n}");
         }
     }
+
     //如果文件存在，那就删除然后新建，不存在就直接新建
     private void setFile(File file) {
 
