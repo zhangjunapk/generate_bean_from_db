@@ -1,0 +1,3 @@
+# generate_bean_from_db
+
+通过数据库以及表名来生成Bean类和通用Mapper
