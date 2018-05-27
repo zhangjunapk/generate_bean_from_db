@@ -5,6 +5,7 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 自动生成bean工具
@@ -12,7 +13,6 @@ import java.util.List;
  * @author 张君
  */
 public class Creater {
-    private List<String> importList = new ArrayList<>();
     private String beanPackage;
     private String mapperPackage;
     private String username;
@@ -22,7 +22,7 @@ public class Creater {
 
 
 
-    private HashMap<String, List<FieldBean>> map = new HashMap<>();
+    private HashMap<String, FieldBean> map = new HashMap<>();
 
 
     public String getBeanPackage() {
@@ -45,6 +45,25 @@ public class Creater {
 
     public Creater setMapperPackage(String mapperPackage) {
         this.mapperPackage = mapperPackage;
+        return this;
+    }
+
+    public Creater allTable(){
+        String sql="show tables";
+        try {
+            Connection conn=DriverManager.getConnection(url,username,password);
+            Statement statement = conn.createStatement();
+            ResultSet resultSet = statement.executeQuery(sql);
+            List<String> table=new ArrayList<>();
+            while(resultSet.next()){
+               table.add(resultSet.getString(1));
+            }
+            this.tables=table;
+            statement.close();
+            conn.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         return this;
     }
 
@@ -107,31 +126,33 @@ public class Creater {
 
     //放字段类型和名字
     private class FieldBean {
-        private String type;
-        private String name;
+        //class 字段 类型的键值对
+        private List<Map.Entry<String,String>> fieldMap=new ArrayList<>();
+        //导入list
+        private List<String> importList=new ArrayList<>();
 
         public FieldBean() {
         }
 
-        public String getType() {
-            return type;
+        public FieldBean( List<String> importList,List<Map.Entry<String, String>> fieldMap) {
+            this.fieldMap = fieldMap;
+            this.importList = importList;
         }
 
-        public void setType(String type) {
-            this.type = type;
+        public List<Map.Entry<String, String>> getFieldMap() {
+            return fieldMap;
         }
 
-        public String getName() {
-            return name;
+        public void setFieldMap(List<Map.Entry<String, String>> fieldMap) {
+            this.fieldMap = fieldMap;
         }
 
-        public void setName(String name) {
-            this.name = name;
+        public List<String> getImportList() {
+            return importList;
         }
 
-        public FieldBean(String type, String name) {
-            this.type = type;
-            this.name = name;
+        public void setImportList(List<String> importList) {
+            this.importList = importList;
         }
     }
 
@@ -153,17 +174,36 @@ public class Creater {
             int columnCount = metaData.getColumnCount();
             List<FieldBean> list = new ArrayList<>();
             //获得的索引从1开始
+            List<String> importList=new ArrayList<>();
+            List<Map.Entry<String,String>> fieldList=new ArrayList<>();
             for (int i = 1; i <= columnCount; i++) {
                 System.out.println(i);
                 String columnName = metaData.getColumnName(i);
                 System.out.println(" columnName:"+columnName);
                 int columnType = metaData.getColumnType(i);
-                list.add(new FieldBean(getJavaTypeString(columnType), columnName));
-                addToImportList(columnType);
+                addToImportList(importList,columnType);
+                fieldList.add(new Map.Entry<String, String>() {
+                    @Override
+                    public String getKey() {
+                        return columnName;
+                    }
+
+                    @Override
+                    public String getValue() {
+                        return getJavaTypeString(columnType);
+                    }
+
+                    @Override
+                    public String setValue(String value) {
+                        return getJavaTypeString(columnType);
+                    }
+                });
             }
-            map.put(tableName, list);
+            map.put(tableName, new FieldBean(importList,fieldList));
 
         }
+        statement.close();
+        conn.close();
     }
 
     //根据接收到的sqltype 数值来判断类型并返回
@@ -191,7 +231,7 @@ public class Creater {
         return "String";
     }
 
-    private void addToImportList(int type) {
+    private void addToImportList(List<String> list,int type) {
         //类型判断是否需要导包
         //然后放到importList
 
@@ -199,8 +239,9 @@ public class Creater {
             case Types.DATALINK:
             case Types.DATE:
             case Types.TIMESTAMP:
-                importList.add("java.util.Date");
-                break;
+                if(!list.contains("java.util.Date")) {
+                    list.add("java.util.Date");
+                }break;
         }
 
 
@@ -236,22 +277,26 @@ public class Creater {
             append(file,"package "+ beanPackage +";\r\n");
 
             //导包文本添加
-            for (String str : importList) {
+            for (String str : map.get(key).getImportList()) {
                 append(file, "import " + str + ";\r\n");
             }
 
             append(file, "public class " + toCamelCase(1, key) + "{\r\n");
-            for (FieldBean fieldBean : map.get(key)) {
+            for (Map.Entry entry : map.get(key).getFieldMap()) {
+                String type= (String) entry.getValue();
+                String name= (String) entry.getKey();
                 //写入文本
                 //写入变量声明部分
-                append(file, "private " + fieldBean.getType() + " " + toCamelCase(0, fieldBean.getName()) + ";\r\n");
+                append(file, "private " + type + " " + toCamelCase(0, name) + ";\r\n");
             }
             append(file, "\r\n");
-            for (FieldBean fieldBean : map.get(key)) {
+            for (Map.Entry entry : map.get(key).getFieldMap()) {
+                String name= (String) entry.getKey();
+                String type= (String) entry.getValue();
                 //写入setter getter
-                append(file, "public void set" + toCamelCase(1, fieldBean.getName()) + "(" + fieldBean.getType() + " " + toCamelCase(0, fieldBean.getName()) + "){ \r\nthis." + toCamelCase(0, fieldBean.getName()) + "=" + toCamelCase(0, fieldBean.getName()) + ";\r\n}\r\n");
-                append(file, "public "+fieldBean.getType()+" get" + toCamelCase(1, fieldBean.getName()) + "(){ \r\nreturn " + toCamelCase(0, fieldBean.getName()) + ";\r\n}\r\n");
-                System.out.println("  " + fieldBean.getName() + ":" + fieldBean.getType());
+                append(file, "public void set" + toCamelCase(1, name) + "(" + type + " " + toCamelCase(0, name) + "){ \r\nthis." + toCamelCase(0, name) + "=" + toCamelCase(0, name) + ";\r\n}\r\n");
+                append(file, "public "+type+" get" + toCamelCase(1, name) + "(){ \r\nreturn " + toCamelCase(0,name) + ";\r\n}\r\n");
+                System.out.println("  " + type + ":" + type);
             }
             append(file, "\r\n}");
         }
