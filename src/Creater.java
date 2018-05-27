@@ -144,6 +144,7 @@ public class Creater {
         Statement statement = conn.createStatement();
         //遍历每个表
         for (String tableName : tables) {
+            System.out.println("tablename:"+tableName);
             String sql = "select * from `" + tableName + "`";
             ResultSet resultSet = statement.executeQuery(sql);
             //遍历表里的每个字段，放到map中
@@ -155,6 +156,7 @@ public class Creater {
             for (int i = 1; i <= columnCount; i++) {
                 System.out.println(i);
                 String columnName = metaData.getColumnName(i);
+                System.out.println(" columnName:"+columnName);
                 int columnType = metaData.getColumnType(i);
                 list.add(new FieldBean(getJavaTypeString(columnType), columnName));
                 addToImportList(columnType);
@@ -166,7 +168,10 @@ public class Creater {
 
     //根据接收到的sqltype 数值来判断类型并返回
     private String getJavaTypeString(int type) {
-        if (type == Types.DATALINK || type == Types.DATE) {
+
+        System.out.println("  type:"+type);
+
+        if (type == Types.TIME || type == Types.DATE||type==Types.TIMESTAMP) {
             return "Date";
         }
         if(type==Types.FLOAT){
@@ -193,6 +198,7 @@ public class Creater {
         switch (type) {
             case Types.DATALINK:
             case Types.DATE:
+            case Types.TIMESTAMP:
                 importList.add("java.util.Date");
                 break;
         }
@@ -256,7 +262,8 @@ public class Creater {
             setFile(file);
             append(file,"package "+this.mapperPackage+";\r\n");
             append(file,"import "+beanPackage+"."+toCamelCase(1,str)+";\r\n");
-            append(file,"public class "+toCamelCase(1,str)+"Mapper extends Mapper<"+toCamelCase(1,str)+">{\r\n}");
+            append(file,"import tk.mybatis.mapper.common.Mapper;\r\n");
+            append(file,"public interface "+toCamelCase(1,str)+"Mapper extends Mapper<"+toCamelCase(1,str)+">{\r\n}");
         }
     }
     //如果文件存在，那就删除然后新建，不存在就直接新建
