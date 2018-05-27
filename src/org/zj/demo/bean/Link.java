@@ -1,6 +1,8 @@
 package org.zj.demo.bean;
+import javax.persistence.Id;
 import java.util.Date;
 public class Link{
+@Id
 private int id;
 private String name;
 private String url;

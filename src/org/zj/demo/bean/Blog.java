@@ -1,6 +1,8 @@
 package org.zj.demo.bean;
+import javax.persistence.Id;
 import java.util.Date;
 public class Blog{
+@Id
 private int id;
 private String title;
 private String content;

@@ -1,6 +1,8 @@
 package org.zj.demo.bean;
+import javax.persistence.Id;
 import java.util.Date;
 public class ReadHistory{
+@Id
 private int id;
 private int blogId;
 private Date date;

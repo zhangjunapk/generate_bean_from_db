@@ -1,5 +1,7 @@
 package org.zj.demo.bean;
+import javax.persistence.Id;
 public class Type{
+@Id
 private int id;
 private int parentId;
 private String title;

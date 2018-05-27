@@ -1,5 +1,7 @@
 package org.zj.demo.bean;
+import javax.persistence.Id;
 public class Notice{
+@Id
 private int id;
 private String title;
 private String content;
